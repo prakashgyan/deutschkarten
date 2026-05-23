@@ -1,5 +1,6 @@
 import { initStorage, getDecks, saveDeck, deleteDeck, getCards, getCardsByDeck, saveCard, deleteCard, getStats, recordReview, generateId } from './storage.js';
 import { sm2, isDue, getDueCount } from './srs.js';
+import { parseApkg } from './importer.js';
 
 // ── State ────────────────────────────────────────────────────────────────────
 const state = {
@@ -172,11 +173,16 @@ function renderDecks() {
     <div class="page">
       <div class="page-header">
         <h2 class="page-title">All Decks</h2>
-        <button class="btn btn-primary btn-sm" data-action="add-deck">+ New Deck</button>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-sm btn-ghost" data-action="import-apkg" title="Import .apkg">📥 Import</button>
+          <button class="btn btn-primary btn-sm" data-action="add-deck">+ New Deck</button>
+        </div>
       </div>
-      <div class="list">${rows || '<p class="empty">No decks yet. Create one!</p>'}</div>
+      <div class="list">${rows || '<p class="empty">No decks yet. Create one or import an .apkg!</p>'}</div>
+      <input type="file" id="apkg-input" accept=".apkg" style="display:none">
     </div>
     ${renderNav('decks')}
+    ${renderImportOverlay()}
   `;
 }
 
@@ -456,6 +462,68 @@ function renderDeckForm() {
   `;
 }
 
+// ── Import overlay ────────────────────────────────────────────────────────────
+function renderImportOverlay() {
+  return `
+    <div class="import-overlay" id="import-overlay" style="display:none">
+      <div class="import-modal">
+        <div class="import-icon" id="import-icon">📥</div>
+        <div class="import-title" id="import-title">Import .apkg</div>
+        <div class="import-msg" id="import-msg">Loading…</div>
+        <div class="import-progress"><div class="import-bar" id="import-bar"></div></div>
+      </div>
+    </div>
+  `;
+}
+
+function showImportOverlay(msg, progress = 0, icon = '⏳') {
+  const overlay = document.getElementById('import-overlay');
+  if (!overlay) return;
+  overlay.style.display = 'flex';
+  document.getElementById('import-icon').textContent = icon;
+  document.getElementById('import-msg').textContent = msg;
+  document.getElementById('import-bar').style.width = `${progress}%`;
+}
+
+function hideImportOverlay() {
+  const overlay = document.getElementById('import-overlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+async function handleApkgImport(file) {
+  const steps = ['Loading libraries…','Reading file…','Extracting archive…','Opening database…','Parsing decks…','Importing cards…'];
+  let step = 0;
+
+  showImportOverlay(steps[0], 5);
+
+  try {
+    const result = await parseApkg(file, msg => {
+      step++;
+      const pct = Math.round((step / steps.length) * 90);
+      showImportOverlay(msg, pct);
+    });
+
+    showImportOverlay(`Saving ${result.cards.length} cards…`, 95);
+
+    // Persist to storage
+    result.decks.forEach(d => saveDeck(d));
+    result.cards.forEach(c => saveCard(c));
+
+    showImportOverlay(
+      `✅ Imported ${result.decks.length} deck(s), ${result.cards.length} cards${result.skipped ? ` (${result.skipped} skipped)` : ''}`,
+      100, '🎉'
+    );
+
+    document.getElementById('import-title').textContent = 'Import complete!';
+    setTimeout(() => { hideImportOverlay(); navigate('decks'); }, 2200);
+
+  } catch (err) {
+    showImportOverlay(`Error: ${err.message}`, 0, '❌');
+    document.getElementById('import-title').textContent = 'Import failed';
+    setTimeout(hideImportOverlay, 3500);
+  }
+}
+
 // ── Event handlers ────────────────────────────────────────────────────────────
 function attachHandlers() {
   // Navigation buttons
@@ -479,6 +547,15 @@ function attachHandlers() {
   const deckForm = document.getElementById('deck-form');
   if (deckForm) deckForm.addEventListener('submit', handleDeckSubmit);
 
+  // .apkg file input
+  const apkgInput = document.getElementById('apkg-input');
+  if (apkgInput) {
+    apkgInput.addEventListener('change', e => {
+      const file = e.target.files[0];
+      if (file) handleApkgImport(file);
+    });
+  }
+
   // Keyboard shortcuts for study
   if (state.view === 'study') {
     document.onkeydown = handleStudyKey;
@@ -501,6 +578,9 @@ function handleAction(e, el) {
     case 'open-deck':
       state.activeDeckId = deck;
       navigate('deck');
+      break;
+    case 'import-apkg':
+      document.getElementById('apkg-input')?.click();
       break;
     case 'flip-card':
       if (!state.study.flipped) {

@@ -858,6 +858,49 @@ select.form-input { cursor: pointer; }
   }
 }
 
+/* ── Import Overlay ──────────────────────────────────────────────────── */
+.import-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.7);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+  padding: 24px;
+}
+
+.import-modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 32px 24px;
+  text-align: center;
+  max-width: 340px;
+  width: 100%;
+  box-shadow: var(--shadow);
+}
+
+.import-icon { font-size: 40px; margin-bottom: 12px; }
+.import-title { font-size: 18px; font-weight: 800; margin-bottom: 8px; }
+.import-msg { font-size: 14px; color: var(--text-muted); margin-bottom: 20px; min-height: 20px; }
+
+.import-progress {
+  height: 6px;
+  background: var(--surface3);
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.import-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary), var(--accent));
+  border-radius: 99px;
+  transition: width .4s ease;
+  width: 0%;
+}
+
 /* ── Scrollbar ───────────────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
